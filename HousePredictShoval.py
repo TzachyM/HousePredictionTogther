@@ -26,6 +26,8 @@ def fix_conditions(df, col, val):
 def fill_na(df):
     df['Alley'] = df['Alley'].fillna('No')
     df['LotFrontage'] = df['LotFrontage'].fillna(0)
+    for name in ['BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1']:
+        df[name] = df[name].fillna('NA')
     # df = df.fillna(df.mode().iloc[0])
     return df
 
@@ -35,7 +37,7 @@ def features_engineering(df):
     df = fix_conditions(df, 'Condition1', 'Norm')
     df = fix_conditions(df, 'Condition2', 'Norm')
     df['Condition'] = df['Condition1'] + df['Condition2']
-    df.drop(['Condition1', 'Condition2', 'Utilities', 'MSSubClass', 'RoofStyle'], axis=1,
+    df.drop(['Condition1', 'Condition2', 'Utilities', 'MSSubClass', 'RoofStyle', 'Foundation'], axis=1,
             inplace=True)  # MSSubClass , RoofStyle
     # make the yearbuild a range of years
     labels = [0, 1, 2, 3]
@@ -50,9 +52,13 @@ def features_engineering(df):
     # group MasVnrArea by ranges
     labels = [0, 1, 2]
     bins = [0, 1, 400, 2000]
+    dict = {'Ex':5, 'Gd':4, 'TA':3, 'Fa':2, 'Po':1, 'NA':0, 'Mn':2 , 'No':1	}
     df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True)
-    df.ExterQual = df.ExterQual.map({'Ex': 4, 'Gd': 3, 'TA': 2, 'Fa': 1, 'Po': 0, })
-    df.ExterCond = df.ExterCond.map({'Ex':4, 'Gd':3, 'TA':2, 'Fa':1, 'Po':0,})
+    df.ExterQual = df.ExterQual.map(dict)
+    df.ExterCond = df.ExterCond.map(dict)
+    df.BsmtQual = df.BsmtQual.map(dict)
+    df.BsmtCond = df.BsmtCond.map(dict)
+    df.BsmtExposure = df.BsmtExposure.map(dict)
     return df
 
 
@@ -68,11 +74,21 @@ def visual_data(df):
     # view RoofMatl  with salePrice
     plt.figure()
     sns.boxplot(x='RoofMatl', y="SalePrice", data=df)
-
+    # view MasVnrArea  with salePrice
     df.plot.scatter(x='MasVnrArea', y='SalePrice')
-
+    # view ExterQual  with salePrice
     plt.figure()
     sns.boxplot(x='ExterQual', y="SalePrice", data=df)
+    # view Foundation  with salePrice
+    plt.figure()
+    sns.boxplot(x='Foundation', y="SalePrice", data=df)
+    # view BsmtQual  with salePrice
+    plt.figure()
+    sns.boxplot(x='BsmtQual', y="SalePrice", data=df)
+    # view BsmtQual  with salePrice
+    plt.figure()
+    sns.boxplot(x='BsmtCond', y="SalePrice", data=df)
+
 if __name__ == '__main__':
     # load data
     train_data = pd.read_csv(r'House.csv')
