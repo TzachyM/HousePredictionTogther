@@ -17,9 +17,9 @@ from collections import Counter
 from pandas.api.types import is_numeric_dtype
 
 
-def fix_conditions(df, col):
-    df.loc[df[col] != 'Norm', col] = 1
-    df.loc[df[col] == 'Norm', col] = 0
+def fix_conditions(df, col, val):
+    df.loc[df[col] != val, col] = 0
+    df.loc[df[col] == val, col] = 1
     return df
 
 
@@ -32,8 +32,8 @@ def fill_na(df):
 
 def features_engineering(df):
     # mergin condition 1 and 2 to 1 column
-    df = fix_conditions(df, 'Condition1')
-    df = fix_conditions(df, 'Condition2')
+    df = fix_conditions(df, 'Condition1', 'Norm')
+    df = fix_conditions(df, 'Condition2', 'Norm')
     df['Condition'] = df['Condition1'] + df['Condition2']
     df.drop(['Condition1', 'Condition2', 'Utilities', 'MSSubClass', 'RoofStyle'], axis=1,
             inplace=True)  # MSSubClass , RoofStyle
@@ -45,21 +45,34 @@ def features_engineering(df):
     labels = [0, 1, 2, 3, 4, 5]
     bins = [0, 1920, 1940, 1960, 1980, 2000, 2020]
     df.YearRemodAdd = pd.cut(df.YearRemodAdd, bins, labels=labels, include_lowest=True)
-
+    # change roof matirial
+    df = fix_conditions(df, 'RoofMatl', 'WdShngl')
+    # group MasVnrArea by ranges
+    labels = [0, 1, 2]
+    bins = [0, 1, 400, 2000]
+    df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True)
+    df.ExterQual = df.ExterQual.map({'Ex': 4, 'Gd': 3, 'TA': 2, 'Fa': 1, 'Po': 0, })
+    df.ExterCond = df.ExterCond.map({'Ex':4, 'Gd':3, 'TA':2, 'Fa':1, 'Po':0,})
     return df
 
 
 def visual_data(df):
     # view year build with salePrice
-    df.plot.scatter(x='YearBuilt', y='SalePrice', xlim=(1880, 2020))
-    plt.show()
-    # view RoofStyle with salePrice
-    sns.boxplot(x='RoofStyle', y="SalePrice", data=df)
-    plt.show()
-    # view RoofMatl  with salePrice
-    sns.boxplot(x='RoofMatl', y="SalePrice", data=df)
-    plt.show()
 
+    df.plot.scatter(x='YearBuilt', y='SalePrice', xlim=(1880, 2020))
+
+    # view RoofStyle with salePrice
+    plt.figure()
+    sns.boxplot(x='RoofStyle', y="SalePrice", data=df)
+
+    # view RoofMatl  with salePrice
+    plt.figure()
+    sns.boxplot(x='RoofMatl', y="SalePrice", data=df)
+
+    df.plot.scatter(x='MasVnrArea', y='SalePrice')
+
+    plt.figure()
+    sns.boxplot(x='ExterQual', y="SalePrice", data=df)
 if __name__ == '__main__':
     # load data
     train_data = pd.read_csv(r'House.csv')
