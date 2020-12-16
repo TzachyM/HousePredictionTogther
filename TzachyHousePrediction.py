@@ -2,6 +2,13 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
+from collections import Counter
+from pandas.api.types import is_numeric_dtype
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_log_error
+from sklearn.ensemble import GradientBoostingRegressor
 
 def import_data():
     train = pd.read_csv(r'C:\Users\tzach\Dropbox\DC\Primrose\Excercies\Kaggle\House Price\train.csv')
@@ -17,7 +24,7 @@ def data_prep():
     y_train = train.SalePrice
     df = pd.concat([train, test]).reset_index(drop=True).drop(['Id', 'SalePrice'], axis=1)
     # Visual data
-    visual(train)
+    #visual(train)
     #Feature engineering
     df = feat_engineering(df)
     train = df.iloc[:(df.shape[0]-id_test.shape[0]), :]
@@ -27,6 +34,7 @@ def data_prep():
 def feat_engineering(df):
     #Fill NaN
     df = fill_na(df)
+
     #Features
     df = binary_fix(df, 'Condition1', 'Norm')
     df = binary_fix(df, 'Condition2', 'Norm')
@@ -40,7 +48,7 @@ def feat_engineering(df):
     df = binary_fix(df, 'RoofMatl', 'WdShngl')
     labels = [0, 1, 2]
     bins = [0, 1, 400, 2000]
-    df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True)#maybe leave it numerical
+    #df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True)#maybe leave it numerical
     value_dict = {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'Na': 0, 'Av': 3, 'Mn': 2, 'No': 1, 'GLQ': 6, 'ALQ': 5,
                   'BLQ': 4, 'Rec': 3, 'LwQ': 2, 'Unf': 1}
     df.ExterQual = df.ExterQual.map(value_dict)
@@ -64,10 +72,10 @@ def feat_engineering(df):
                                            12: 11, 13: 13, 14: 14, 15: 15})
     df.Functional = binary_fix(df, 'Functional', 'Maj2')
     df.FireplaceQu = df.FireplaceQu.map(value_dict)
-    df.GarageFinish = df.GarageFinish.map({'NA': 0, 'Fin':3, 'RFn': 2, 'Unf': 1})
+    df.GarageFinish = df.GarageFinish.map({'Na': 0, 'Fin':3, 'RFn': 2, 'Unf': 1})
     df.GarageQual = df.GarageQual.map(value_dict)
     df.GarageCond = df.GarageCond.map(value_dict)
-    df.PavedDrive = df.PavedDrive.map({'Y': 2, 'P': 1, 'N': 0 })
+    df.PavedDrive = df.PavedDrive.map({'Y': 2, 'P': 1, 'N': 0})
     labels = [0, 1, 2, 3, 4, 5]
     bins = [0, 1, 100, 200, 300, 400, 1000]
     df.WoodDeckSF = pd.cut(df.WoodDeckSF, bins, labels=labels, include_lowest=True)
@@ -76,9 +84,16 @@ def feat_engineering(df):
     df.OpenPorchSF = pd.cut(df.OpenPorchSF, bins, labels=labels, include_lowest=True)
     #Columns drop
     df.drop(['Condition1', 'Condition2', 'Utilities','BsmtFinSF2', 'BsmtFinType2', 'LowQualFinSF','BsmtFullBath',
-     'BsmtHalfBath','HalfBath','GarageYrBlt','GarageArea','EnclosedPorch','3SsnPorch','ScreenPorch', 'PoolArea',
-     'PoolQC','Fence','MiscVal','MoSold','YrSold'], axis=1, inplace=True)  # 'MSSubClass','Foundation','RoofStyle
+     'BsmtHalfBath', 'HalfBath', 'GarageYrBlt', 'GarageArea', 'EnclosedPorch','3SsnPorch', 'ScreenPorch', 'PoolArea',
+     'PoolQC', 'Fence', 'MiscVal', 'MoSold', 'YrSold'], axis=1, inplace=True)  # 'MSSubClass','Foundation','RoofStyle'
+    df = pd.get_dummies(df)
     return df
+
+def normal(train, test):
+    norm = MinMaxScaler()
+    train = norm.fit_transform(train)
+    test = norm.transform(test)
+    return train, test
 
 def binary_fix(df, col, value):
     df.loc[df[col] == value, col] = 0
@@ -90,13 +105,23 @@ def fill_na(df):
     df['LotFrontage'] = df['LotFrontage'].fillna(0)
     for name in ['BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'FireplaceQu', 'GarageType', 'GarageFinish',
                  'GarageQual','GarageCond', 'MiscFeature']:
-        df[name] = df[name].fillna('NA')
+        df[name] = df[name].fillna('Na')
     df.fillna(df.mode().iloc[0], inplace=True)
     return df
 
-def outlier_remove(df):
-    df.drop(df[df.BsmtFinSF1 > 3000].index[0], inplace=True, axis=0)
-
+def outlier_remove(df, iqr_step=1.5, n=3):
+    outlier_index = []
+    for col in df.columns:
+        if(is_numeric_dtype(df[col])):
+            q1 = np.percentile(df[col], 25)
+            q3 = np.percentile(df[col], 75)
+            iqr = q3-q1
+            step = iqr_step*iqr
+            outlier_col = df[(df[col]<q1-step) | (df[col]>q3+step)].index
+            outlier_index.extend(outlier_col)
+    outlier_indices = Counter(outlier_index)
+    multiple_outliers = list(k for k, v in outlier_indices.items() if v > n)
+    df.drop(multiple_outliers, inplace=True)
     return df
 
 def visual(df):
@@ -118,6 +143,22 @@ def visual(df):
 if __name__ == "__main__":
 
     train, test, y_train, id_test = data_prep()
+    # Normal the data
+    train, test = normal(train, test)
+    X_train, X_test, y_train, y_test = train_test_split(train, y_train, test_size=0.2, random_state=42)
+    model = GradientBoostingRegressor(random_state=42, learning_rate=0.05, n_estimators=500)
+    model.fit(X_train, y_train)
+    print(model.score(X_test, y_test))
+    y_pred = model.predict(X_test)
+    print(np.sqrt(mean_squared_log_error(np.abs(y_test), np.abs(y_pred))))
+'''   
+    submission = pd.DataFrame({'Id': id_test, 'SalePrice': y_pred})
 
+    submission.to_csv('submission.csv', index=False)
+
+    submission = pd.read_csv('submission.csv')
+
+    print(submission)
+'''
 
 
