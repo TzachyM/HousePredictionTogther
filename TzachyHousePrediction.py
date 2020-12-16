@@ -51,7 +51,7 @@ if __name__ == "__main__":
     # train,test = feat_engineering()
 
     train, test = import_data()
-    visual(train)
+    #visual(train)
     #train = outlier_remove(train)
     id_test = test.Id
     y_train = train.SalePrice
@@ -61,7 +61,7 @@ if __name__ == "__main__":
     df = binary_fix(df, 'Condition2', 'Norm')
     df['Condition'] = df.Condition1 + df.Condition2
 
-    df.drop(['Condition1', 'Condition2', 'Utilities','BsmtFinSF2', 'BsmtFinType2'], axis=1, inplace=True)  # 'MSSubClass','Foundation','RoofStyle
+    #df.drop(['Condition1', 'Condition2', 'Utilities','BsmtFinSF2', 'BsmtFinType2', 'LowQualFinSF','BsmtFullBath','BsmtHalfBath','HalfBath'], axis=1, inplace=True)  # 'MSSubClass','Foundation','RoofStyle
     #df = fill_na(df)
 
     labels = [0, 1, 2, 3]
@@ -85,13 +85,17 @@ if __name__ == "__main__":
     df.BsmtExposure = df.BsmtExposure.map(value_dict)
     df.BsmtFinType1 = df.BsmtFinType1.map(value_dict)
     labels = [0, 1, 2, 3, 4]
-    bins = [0, 5, 500, 1000, 1500, 3000]
-    df.BsmtFinSF1 = pd.cut(df.BsmtFinSF1, bins, labels=labels, include_lowest=True)
-    labels = [0, 1, 2, 3, 4]
     bins = [0, 1, 500, 1000, 1500, 3000]
+    df.BsmtFinSF1 = pd.cut(df.BsmtFinSF1, bins, labels=labels, include_lowest=True)
     df.BsmtUnfSF = pd.cut(df.BsmtUnfSF, bins, labels=labels, include_lowest=True)
     df.loc[(df.Heating == 'GasA') | (df.Heating == 'GasW'), 'Heating'] = 1
     df.loc[df.Heating != 1, 'Heating'] = 0
     df.HeatingQC = df.HeatingQC.map(value_dict)
     df['TotalFlr'] = df['1stFlrSF'] + df['2ndFlrSF']
-
+    df['2ndFlrSF'] = pd.cut(df['2ndFlrSF'], bins, labels=labels, include_lowest=True)
+    df = binary_fix(df, 'KitchenAbvGr', 1)
+    df.KitchenQual = df.KitchenQual.map(value_dict)
+    df.BsmtFinSF1 = pd.cut(df.BsmtFinSF1, bins, labels=labels, include_lowest=True)
+    df.TotRmsAbvGrd = df.TotRmsAbvGrd.map({1: 1, 2: 2, 3: 4, 4: 4, 5: 4, 6: 6, 7: 7, 8: 8, 9: 9, 10: 11, 11: 11,
+                                           12: 11, 13: 13, 14: 14, 15: 15})
+    df.Functional = binary_fix(df, 'Functional', 'Maj2')
