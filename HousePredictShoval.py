@@ -29,7 +29,7 @@ def fix_conditions(df, col, val):
 def fill_na(df):
     df['Alley'] = df['Alley'].fillna('No')
     df['LotFrontage'] = df['LotFrontage'].fillna(0)
-    for name in ['BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1']:
+    for name in ['BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1','FireplaceQu', 'GarageType','GarageFinish','GarageQual', 'GarageCond','MiscFeature']:
         df[name] = df[name].fillna('NA')
     # df = df.fillna(df.mode().iloc[0])
     return df
@@ -40,8 +40,10 @@ def features_engineering(df):
     df = fix_conditions(df, 'Condition1', 'Norm')
     df = fix_conditions(df, 'Condition2', 'Norm')
     df['Condition'] = df['Condition1'] + df['Condition2']
-    df.drop(['Condition1', 'Condition2', 'Utilities', 'MSSubClass', 'RoofStyle', 'Foundation','BsmtFinSF2', 'BsmtFinType2'], axis=1,
-            inplace=True)  # MSSubClass , RoofStyle,  Foundation
+    df.drop(['Condition1', 'Condition2', 'Utilities','HalfBath','GarageArea','EnclosedPorch','MoSold','YrSold'
+             '3SsnPorch','ScreenPorch', 'PoolArea' , 'PoolQC','MiscVal',
+             'MSSubClass', 'RoofStyle', 'Foundation','BsmtFinSF2', 'BsmtFinType2', 'LowQualFinSF',
+             'BsmtHalfBath','BsmtFullBath','GarageYrBlt'], axis=1, inplace=True)  # MSSubClass , RoofStyle,  Foundation
     # make the yearbuild a range of years
     labels = [0, 1, 2, 3]
     bins = [0, 1900, 1950, 2000, 2020]
@@ -66,15 +68,29 @@ def features_engineering(df):
     df.BsmtExposure = df.BsmtExposure.map(dict)
     df.BsmtFinType1 = df.BsmtFinType1.map(dict)
     labels = [0, 1, 2, 3, 4]
-    bins = [0, 5, 500, 1000, 1500, 3000]
-    df.BsmtFinSF1 = pd.cut(df.BsmtFinSF1, bins, labels=labels, include_lowest=True)
-    labels = [0, 1, 2, 3, 4]
     bins = [0, 1, 500, 1000, 1500, 3000]
+    df.BsmtFinSF1 = pd.cut(df.BsmtFinSF1, bins, labels=labels, include_lowest=True)
     df.BsmtUnfSF = pd.cut(df.BsmtUnfSF, bins, labels=labels, include_lowest=True)
     # heating engeeniring
     df.loc[(df['Heating']=='GasA') | (df['Heating']== 'GasW'), 'Heating'] = 1
     df.loc[df['Heating'] != 1, 'Heating'] = 0
     df.HeatingQC = df.HeatingQC.map(dict)
+    df['2ndFlrSF'] = pd.cut(df['2ndFlrSF'], bins, labels=labels, include_lowest=True)
+    df = fix_conditions(df, 'KitchenAbvGr', 1)
+    df.KitchenQual = df.KitchenQual.map(dict)
+    df.TotRmsAbvGrd = df.TotRmsAbvGrd.map({2:2,5:4, 3:4,4:4, 6:6, 7:7, 8:8, 9:9, 11:11 , 12:11, 10:11, 14:14,13:13,15:15,1:1})
+    df = fix_conditions(df, 'Functional', 'Maj2')
+    df.FireplaceQu = df.FireplaceQu.map(dict)
+    df.GarageFinish = df.GarageFinish.map({'NA':0, 'Fin':3, 'RFn':2, 'Unf':1})
+    df.GarageQual = df.GarageQual.map(dict)
+    df.GarageCond = df.GarageCond.map(dict)
+    df.PavedDrive = df.PavedDrive.map({'N': 0,  'Y': 2, 'P': 1})
+    labels = [0, 1, 2, 3, 4, 5]
+    bins = [0, 1, 100, 200, 300, 400, 1000]
+    df.WoodDeckSF = pd.cut(df.WoodDeckSF, bins, labels=labels, include_lowest=True)
+    labels = [0, 1, 2, 3, ]
+    bins = [0, 1, 100, 200, 1000]
+    df.OpenPorchSF = pd.cut(df.OpenPorchSF, bins, labels=labels, include_lowest=True)
     return df
 
 
@@ -106,12 +122,15 @@ def visual_data(df):
     sns.boxplot(x='BsmtCond', y="SalePrice", data=df)
     # view
     df.plot.scatter(x='1stFlrSF', y='SalePrice')
+    # view
+    plt.show()
+    df.plot.scatter(x='2ndFlrSF', y='SalePrice')
 if __name__ == '__main__':
     # load data
     train_data = pd.read_csv(r'House.csv')
     test_data = pd.read_csv(r'TestHouse.csv')
     # preproccesing
-    visual_data(train_data)  # visualizition
+    #visual_data(train_data)  # visualizition
     id_test = test_data['Id']  # save Id for later to submit prediction
     df = pd.concat([train_data, test_data]).reset_index(drop=True)  # marge both train and test
     df = df.drop(['Id', 'SalePrice'], axis=1)  # drop useless columns
