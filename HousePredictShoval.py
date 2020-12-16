@@ -16,6 +16,9 @@ import seaborn as sns
 from collections import Counter
 from pandas.api.types import is_numeric_dtype
 
+def out_liers(df):
+    df.drop(df[df.BsmtFinSF1 > 3000], inplace=True)
+    return df
 
 def fix_conditions(df, col, val):
     df.loc[df[col] != val, col] = 0
@@ -37,8 +40,8 @@ def features_engineering(df):
     df = fix_conditions(df, 'Condition1', 'Norm')
     df = fix_conditions(df, 'Condition2', 'Norm')
     df['Condition'] = df['Condition1'] + df['Condition2']
-    df.drop(['Condition1', 'Condition2', 'Utilities', 'MSSubClass', 'RoofStyle', 'Foundation'], axis=1,
-            inplace=True)  # MSSubClass , RoofStyle
+    df.drop(['Condition1', 'Condition2', 'Utilities', 'MSSubClass', 'RoofStyle', 'Foundation','BsmtFinSF2', 'BsmtFinType2'], axis=1,
+            inplace=True)  # MSSubClass , RoofStyle,  Foundation
     # make the yearbuild a range of years
     labels = [0, 1, 2, 3]
     bins = [0, 1900, 1950, 2000, 2020]
@@ -52,13 +55,26 @@ def features_engineering(df):
     # group MasVnrArea by ranges
     labels = [0, 1, 2]
     bins = [0, 1, 400, 2000]
-    dict = {'Ex':5, 'Gd':4, 'TA':3, 'Fa':2, 'Po':1, 'NA':0, 'Mn':2 , 'No':1	}
+    dict = {'Ex':5, 'Gd':4, 'TA':3, 'Fa':2, 'Po':1, 'NA':0, 'Mn':2 , 'No':1,'GLQ':6,'ALQ':5, 'BLQ':4, 'Rec':3, 'LwQ':2,
+            'Unf':1}
+    # dealing with basement
     df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True)
     df.ExterQual = df.ExterQual.map(dict)
     df.ExterCond = df.ExterCond.map(dict)
     df.BsmtQual = df.BsmtQual.map(dict)
     df.BsmtCond = df.BsmtCond.map(dict)
     df.BsmtExposure = df.BsmtExposure.map(dict)
+    df.BsmtFinType1 = df.BsmtFinType1.map(dict)
+    labels = [0, 1, 2, 3, 4]
+    bins = [0, 5, 500, 1000, 1500, 3000]
+    df.BsmtFinSF1 = pd.cut(df.BsmtFinSF1, bins, labels=labels, include_lowest=True)
+    labels = [0, 1, 2, 3, 4]
+    bins = [0, 1, 500, 1000, 1500, 3000]
+    df.BsmtUnfSF = pd.cut(df.BsmtUnfSF, bins, labels=labels, include_lowest=True)
+    # heating engeeniring
+    df.loc[(df['Heating']=='GasA') | (df['Heating']== 'GasW'), 'Heating'] = 1
+    df.loc[df['Heating'] != 1, 'Heating'] = 0
+    df.HeatingQC = df.HeatingQC.map(dict)
     return df
 
 
@@ -88,7 +104,8 @@ def visual_data(df):
     # view BsmtQual  with salePrice
     plt.figure()
     sns.boxplot(x='BsmtCond', y="SalePrice", data=df)
-
+    # view
+    df.plot.scatter(x='1stFlrSF', y='SalePrice')
 if __name__ == '__main__':
     # load data
     train_data = pd.read_csv(r'House.csv')
