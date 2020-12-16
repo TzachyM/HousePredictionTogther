@@ -19,7 +19,8 @@ from sklearn.preprocessing import RobustScaler
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor
-
+from sklearn.metrics import mean_squared_log_error
+from sklearn.ensemble import GradientBoostingRegressor
 def visual_data(df):
     # view year build with salePrice
 
@@ -124,7 +125,7 @@ def features_engineering(df):
     # group MasVnrArea by ranges
     labels = [0, 1, 2]
     bins = [0, 1, 400, 2000]
-    dict = {'Ex':5, 'Gd':4, 'TA':3, 'Fa':2, 'Po':1, 'NA':0, 'Mn':2 , 'No':1,'GLQ':6,'ALQ':5, 'BLQ':4, 'Rec':3, 'LwQ':2,'Unf':1}
+    dict = {'Ex':5, 'Gd':4, 'TA':3, 'Fa':2, 'Po':1, 'NA':0, 'Mn':2 , 'No':1,'GLQ':6,'ALQ':5, 'BLQ':4, 'Rec':3, 'LwQ':2,'Unf':1,'Av':3}
     # dealing with basement
     df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True)
     df.ExterQual = df.ExterQual.map(dict)
@@ -188,6 +189,17 @@ if __name__ == '__main__':
     train = scaler.transform(train)
     test = scaler.transform(test)
     X_train, X_test, y_train, y_test = train_test_split(train,y,test_size=0.2)
-    model = RandomForestRegressor(max_depth=2, random_state=0)
-    model.fit(X_train, y_train)
+    model = GradientBoostingRegressor(random_state=0,learning_rate=0.05,n_estimators=500)
+    model.fit(X_train,y_train)
     print(model.score(X_test, y_test))
+    y_pred = model.predict(X_test)
+    print(np.sqrt(mean_squared_log_error(np.abs(y_test), np.abs(y_pred))))
+'''   
+    submission = pd.DataFrame({'Id': id_test, 'SalePrice': y_pred})
+
+    submission.to_csv('submission.csv', index=False)
+
+    submission = pd.read_csv('submission.csv')
+
+    print(submission)
+'''
