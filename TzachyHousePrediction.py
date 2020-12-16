@@ -8,75 +8,36 @@ def import_data():
     test = pd.read_csv(r'C:\Users\tzach\Dropbox\DC\Primrose\Excercies\Kaggle\House Price\test.csv')
     return train, test
 
-
-def feat_engineering():
+def data_prep():
     train, test = import_data()
-
-
-def binary_fix(df, col, value):
-    df.loc[df[col] == value, col] = 0
-    df.loc[df[col] != 0, col] = 1
-    return df
-
-
-def fill_na(df):
-    df['Alley'] = df['Alley'].fillna('No')
-    df['LotFrontage'] = df['LotFrontage'].fillna(0)
-    for name in ['BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'FireplaceQu', 'GarageType', 'GarageFinish',
-                 'GarageQual','GarageCond', 'MiscFeature']:
-        df[name] = df[name].fillna('NA')
-    df.fillna(df.mode().iloc[0], inplace=True)
-
-    return df
-
-def outlier_remove(df):
-    df.drop(df[df.BsmtFinSF1 > 3000], inplace=True, axis=0)
-
-def visual(df):
-    # view year build with salePrice
-
-    df.plot.scatter(x='YearBuilt', y='SalePrice', xlim=(1880, 2020))
-    # view RoofStyle with salePrice
-    plt.figure()
-    sns.boxplot(x='RoofStyle', y="SalePrice", data=df)
-    # view RoofMatl  with salePrice
-    plt.figure()
-    sns.boxplot(x='RoofMatl', y="SalePrice", data=df)
-    # view MasVnrArea with salePrice
-    df.plot.scatter(x='MasVnrArea', y='SalePrice')
-    # view MasVnrArea with salePrice
-    df.plot.scatter(x='BsmtFinSF1', y='SalePrice')
-    df.plot.scatter(x='TotalBsmtSF', y='SalePrice')
-
-if __name__ == "__main__":
-    # train,test = feat_engineering()
-
-    train, test = import_data()
-    #visual(train)
-    #train = outlier_remove(train)
+    #Outlier removel
+    train = outlier_remove(train)
+    #Divding data
     id_test = test.Id
     y_train = train.SalePrice
-    df = pd.concat([train, test]).reset_index(drop=True).drop(['Id'], axis=1)
-    # Condition feat
+    df = pd.concat([train, test]).reset_index(drop=True).drop(['Id', 'SalePrice'], axis=1)
+    # Visual data
+    visual(train)
+    #Feature engineering
+    df = feat_engineering(df)
+    train = df.iloc[:(df.shape[0]-id_test.shape[0]), :]
+    test = df.iloc[(df.shape[0]-id_test.shape[0]):, :]
+    return train, test, y_train, id_test
+
+def feat_engineering(df):
+    #Fill NaN
+    df = fill_na(df)
+    #Features
     df = binary_fix(df, 'Condition1', 'Norm')
     df = binary_fix(df, 'Condition2', 'Norm')
     df['Condition'] = df.Condition1 + df.Condition2
-
-    df.drop(['Condition1', 'Condition2', 'Utilities','BsmtFinSF2', 'BsmtFinType2', 'LowQualFinSF','BsmtFullBath',
-     'BsmtHalfBath','HalfBath','GarageYrBlt','GarageArea','EnclosedPorch','3SsnPorch','ScreenPorch', 'PoolArea',
-     'PoolQC','Fence','MiscVal','MoSold','YrSold'], axis=1, inplace=True)  # 'MSSubClass','Foundation','RoofStyle
-    #df = fill_na(df)
-
     labels = [0, 1, 2, 3]
     bins = [0, 1900, 1950, 2000, 2020]
     df.YearBuilt = pd.cut(df.YearBuilt, bins, labels=labels, include_lowest=True)
-
     labels = [0, 1, 2, 3, 4]
     bins = [0, 1950, 1970, 1990, 2000, 2020]
     df.YearRemodAdd = pd.cut(df.YearRemodAdd, bins, labels=labels, include_lowest=True)  # maybe remove
-
     df = binary_fix(df, 'RoofMatl', 'WdShngl')
-
     labels = [0, 1, 2]
     bins = [0, 1, 400, 2000]
     df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True)#maybe leave it numerical
@@ -99,7 +60,6 @@ if __name__ == "__main__":
     df['2ndFlrSF'] = pd.cut(df['2ndFlrSF'], bins, labels=labels, include_lowest=True)
     df = binary_fix(df, 'KitchenAbvGr', 1)
     df.KitchenQual = df.KitchenQual.map(value_dict)
-    df.BsmtFinSF1 = pd.cut(df.BsmtFinSF1, bins, labels=labels, include_lowest=True)
     df.TotRmsAbvGrd = df.TotRmsAbvGrd.map({1: 1, 2: 2, 3: 4, 4: 4, 5: 4, 6: 6, 7: 7, 8: 8, 9: 9, 10: 11, 11: 11,
                                            12: 11, 13: 13, 14: 14, 15: 15})
     df.Functional = binary_fix(df, 'Functional', 'Maj2')
@@ -114,3 +74,50 @@ if __name__ == "__main__":
     labels = [0, 1, 2, 3]
     bins = [0, 1, 100, 200, 1000]
     df.OpenPorchSF = pd.cut(df.OpenPorchSF, bins, labels=labels, include_lowest=True)
+    #Columns drop
+    df.drop(['Condition1', 'Condition2', 'Utilities','BsmtFinSF2', 'BsmtFinType2', 'LowQualFinSF','BsmtFullBath',
+     'BsmtHalfBath','HalfBath','GarageYrBlt','GarageArea','EnclosedPorch','3SsnPorch','ScreenPorch', 'PoolArea',
+     'PoolQC','Fence','MiscVal','MoSold','YrSold'], axis=1, inplace=True)  # 'MSSubClass','Foundation','RoofStyle
+    return df
+
+def binary_fix(df, col, value):
+    df.loc[df[col] == value, col] = 0
+    df.loc[df[col] != 0, col] = 1
+    return df
+
+def fill_na(df):
+    df['Alley'] = df['Alley'].fillna('No')
+    df['LotFrontage'] = df['LotFrontage'].fillna(0)
+    for name in ['BsmtQual', 'BsmtCond', 'BsmtExposure', 'BsmtFinType1', 'FireplaceQu', 'GarageType', 'GarageFinish',
+                 'GarageQual','GarageCond', 'MiscFeature']:
+        df[name] = df[name].fillna('NA')
+    df.fillna(df.mode().iloc[0], inplace=True)
+    return df
+
+def outlier_remove(df):
+    df.drop(df[df.BsmtFinSF1 > 3000].index[0], inplace=True, axis=0)
+
+    return df
+
+def visual(df):
+    # view year build with salePrice
+    df.plot.scatter(x='YearBuilt', y='SalePrice', xlim=(1880, 2020))
+    # view RoofStyle with salePrice
+    plt.figure()
+    sns.boxplot(x='RoofStyle', y="SalePrice", data=df)
+    # view RoofMatl  with salePrice
+    plt.figure()
+    sns.boxplot(x='RoofMatl', y="SalePrice", data=df)
+    # view MasVnrArea with salePrice
+    df.plot.scatter(x='MasVnrArea', y='SalePrice')
+    # view BsmtFinSF1 with salePrice
+    df.plot.scatter(x='BsmtFinSF1', y='SalePrice')
+    # view TotalBsmtSF with salePrice
+    df.plot.scatter(x='TotalBsmtSF', y='SalePrice')
+
+if __name__ == "__main__":
+
+    train, test, y_train, id_test = data_prep()
+
+
+
