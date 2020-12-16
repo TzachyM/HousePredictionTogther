@@ -72,7 +72,7 @@ def feat_engineering(df):
                                            12: 11, 13: 13, 14: 14, 15: 15})
     df.Functional = binary_fix(df, 'Functional', 'Maj2')
     df.FireplaceQu = df.FireplaceQu.map(value_dict)
-    df.GarageFinish = df.GarageFinish.map({'Na': 0, 'Fin':3, 'RFn': 2, 'Unf': 1})
+    df.GarageFinish = df.GarageFinish.map({'Na': 0, 'Fin': 3, 'RFn': 2, 'Unf': 1})
     df.GarageQual = df.GarageQual.map(value_dict)
     df.GarageCond = df.GarageCond.map(value_dict)
     df.PavedDrive = df.PavedDrive.map({'Y': 2, 'P': 1, 'N': 0})
@@ -86,7 +86,20 @@ def feat_engineering(df):
     df.drop(['Condition1', 'Condition2', 'Utilities','BsmtFinSF2', 'BsmtFinType2', 'LowQualFinSF','BsmtFullBath',
      'BsmtHalfBath', 'HalfBath', 'GarageYrBlt', 'GarageArea', 'EnclosedPorch','3SsnPorch', 'ScreenPorch', 'PoolArea',
      'PoolQC', 'Fence', 'MiscVal', 'MoSold', 'YrSold'], axis=1, inplace=True)  # 'MSSubClass','Foundation','RoofStyle'
+    #df = skew(df)
     df = pd.get_dummies(df)
+    return df
+
+def skew(df):
+    print(df.skew())
+    #cols = ['LotArea', 'RoofMatl', 'MasVnrArea', 'BsmtCond', 'Heating', 'KitchenAbvGr', 'GarageQual', 'GarageCond',
+     #  'PavedDrive', 'Condition']
+    #for col in cols:
+   #     df[col] = np.log1p(df[col])
+
+   # print(df.skew())
+     #   if abs(df[col].skew()) > 1:
+      #      df[col] = np.log[:,col]
     return df
 
 def normal(train, test):
@@ -140,6 +153,7 @@ def visual(df):
     # view TotalBsmtSF with salePrice
     df.plot.scatter(x='TotalBsmtSF', y='SalePrice')
 
+
 if __name__ == "__main__":
 
     train, test, y_train, id_test = data_prep()
@@ -149,16 +163,17 @@ if __name__ == "__main__":
     model = GradientBoostingRegressor(random_state=42, learning_rate=0.05, n_estimators=500)
     model.fit(X_train, y_train)
     print(model.score(X_test, y_test))
-    y_pred = model.predict(X_test)
-    print(np.sqrt(mean_squared_log_error(np.abs(y_test), np.abs(y_pred))))
-'''   
+    y_pred = model.predict(test)
+    #print(np.sqrt(mean_squared_log_error(np.abs(y_test), np.abs(y_pred))))
+
     submission = pd.DataFrame({'Id': id_test, 'SalePrice': y_pred})
 
-    submission.to_csv('submission.csv', index=False)
+    submission.to_csv(r'C:\Users\tzach\Dropbox\DC\Primrose\Excercies\Kaggle\House Price\test.submission.csv',
+                      index=False)
 
-    submission = pd.read_csv('submission.csv')
+    submission = pd.read_csv(r'C:\Users\tzach\Dropbox\DC\Primrose\Excercies\Kaggle\House Price\test.submission.csv')
 
     print(submission)
-'''
+
 
 
