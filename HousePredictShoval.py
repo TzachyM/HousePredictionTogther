@@ -125,7 +125,7 @@ def features_engineering(df):
     # group MasVnrArea by ranges
     labels = [0, 1, 2]
     bins = [0, 1, 400, 2000]
-    dict = {'Ex':5, 'Gd':4, 'TA':3, 'Fa':2, 'Po':1, 'NA':0, 'Mn':2 , 'No':1,'GLQ':6,'ALQ':5, 'BLQ':4, 'Rec':3, 'LwQ':2,'Unf':1,'Av':3}
+    dict = {'Ex':5, 'Gd':4, 'TA':3, 'Fa':2, 'Po':1, 'NA':0, 'Mn':2 , 'No':1,'GLQ': 6, 'ALQ': 5, 'BLQ': 4, 'Rec': 3, 'LwQ': 2,'Unf': 1,'Av':3}
     # dealing with basement
     df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True)
     df.ExterQual = df.ExterQual.map(dict)
@@ -163,6 +163,11 @@ def features_engineering(df):
     df.OpenPorchSF = pd.cut(df.OpenPorchSF, bins, labels=labels, include_lowest=True)
     return df
 
+def normal(train, test):
+    norm = MinMaxScaler()
+    train = norm.fit_transform(train)
+    test = norm.transform(test)
+    return train, test
 
 
 if __name__ == '__main__':
@@ -172,28 +177,30 @@ if __name__ == '__main__':
     # preproccesing
     Outliers_to_drop = detect_outliers(train_data,4)
     train_data.drop(Outliers_to_drop,inplace=True)
-    #visual_data(train_data)  # visualizition
+    # visual_data(train_data)  # visualizition
     id_test = test_data['Id']  # save Id for later to submit prediction
     y = train_data['SalePrice']
     df = pd.concat([train_data, test_data]).reset_index(drop=True)  # marge both train and test
     df = df.drop(['Id', 'SalePrice'], axis=1)  # drop useless columns
     df = fill_na(df)  # fill all the nulls after viewing the data
-    df = features_engineering(df)  # change the features to better results
+    df = features_engineering(df)  # change the features to better
+
+    df = df.apply(lambda x: np.log1p(x) if is_numeric_dtype(x) else x)
+    print(df.Heating.value_counts())
+    print(df.info())
     df = pd.get_dummies(df)
-    train = df.iloc[:train_data.shape[0],:]
-    test = df.iloc[train_data.shape[0]:,:]
+    print(df.skew().mean(), 'after skew')
+    train = df.iloc[:train_data.shape[0], :]
+    test = df.iloc[train_data.shape[0]:, :]
     test = test.reset_index(drop=True)
     #noramlize data
-    scaler = MinMaxScaler()
-    scaler.fit(train)
-    train = scaler.transform(train)
-    test = scaler.transform(test)
-    X_train, X_test, y_train, y_test = train_test_split(train,y,test_size=0.2)
-    model = GradientBoostingRegressor(random_state=0,learning_rate=0.05,n_estimators=500)
-    model.fit(X_train,y_train)
-    print(model.score(X_test, y_test))
+
+    X_train, X_test, y_train, y_test = train_test_split(train, y, test_size=0.2, random_state=0)
+    model = GradientBoostingRegressor(random_state=0, learning_rate=0.05, n_estimators=500)
+    model.fit(X_train, y_train)
     y_pred = model.predict(X_test)
-    print(np.sqrt(mean_squared_log_error(np.abs(y_test), np.abs(y_pred))))
+    print(model.score(X_test, y_test))
+    print(np.sqrt(mean_squared_log_error(np.abs(y_test),np.abs(y_pred))))
 '''   
     submission = pd.DataFrame({'Id': id_test, 'SalePrice': y_pred})
 
