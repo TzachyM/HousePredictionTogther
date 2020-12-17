@@ -34,7 +34,6 @@ def data_prep():
 def feat_engineering(df):
     #Fill NaN
     df = fill_na(df)
-
     #Features
     df = binary_fix(df, 'Condition1', 'Norm')
     df = binary_fix(df, 'Condition2', 'Norm')
@@ -44,7 +43,7 @@ def feat_engineering(df):
     df.YearBuilt = pd.cut(df.YearBuilt, bins, labels=labels, include_lowest=True)
     labels = [0, 1, 2, 3, 4]
     bins = [0, 1950, 1970, 1990, 2000, 2020]
-    df.YearRemodAdd = pd.cut(df.YearRemodAdd, bins, labels=labels, include_lowest=True)  # maybe remove
+    #df.YearRemodAdd = pd.cut(df.YearRemodAdd, bins, labels=labels, include_lowest=True)  # maybe remove
     df = binary_fix(df, 'RoofMatl', 'WdShngl')
     labels = [0, 1, 2]
     bins = [0, 1, 400, 2000]
@@ -63,6 +62,7 @@ def feat_engineering(df):
     df.BsmtUnfSF = pd.cut(df.BsmtUnfSF, bins, labels=labels, include_lowest=True)
     df.loc[(df.Heating == 'GasA') | (df.Heating == 'GasW'), 'Heating'] = 1
     df.loc[df.Heating != 1, 'Heating'] = 0
+    df.Heating = df.Heating.astype(int)
     df.HeatingQC = df.HeatingQC.map(value_dict)
     df['TotalFlr'] = df['1stFlrSF'] + df['2ndFlrSF']
     df['2ndFlrSF'] = pd.cut(df['2ndFlrSF'], bins, labels=labels, include_lowest=True)
@@ -85,22 +85,12 @@ def feat_engineering(df):
     #Columns drop
     df.drop(['Condition1', 'Condition2', 'Utilities','BsmtFinSF2', 'BsmtFinType2', 'LowQualFinSF','BsmtFullBath',
      'BsmtHalfBath', 'HalfBath', 'GarageYrBlt', 'GarageArea', 'EnclosedPorch','3SsnPorch', 'ScreenPorch', 'PoolArea',
-     'PoolQC', 'Fence', 'MiscVal', 'MoSold', 'YrSold'], axis=1, inplace=True)  # 'MSSubClass','Foundation','RoofStyle'
-    df = skew(df)
-
+     'PoolQC', 'Fence', 'MiscVal', 'MoSold', 'YrSold', 'MSSubClass', 'Foundation', 'RoofStyle'], axis=1, inplace=True)  # 'MSSubClass','Foundation','RoofStyle'
+    #Skewness fix
+    print("Skewness before fix:", df.skew().mean())
+    df = df.apply(lambda x: np.log1p(x) if is_numeric_dtype(x) and np.abs(x.skew())>2 else x)
+    print("Skewness after fix:", df.skew().mean())
     df = pd.get_dummies(df)
-    return df
-
-def skew(df):
-    print(df.skew())
-    #cols = ['LotArea', 'RoofMatl', 'MasVnrArea', 'BsmtCond', 'Heating', 'KitchenAbvGr', 'GarageQual', 'GarageCond',
-     #  'PavedDrive', 'Condition']
-    #for col in cols:
-   #     df[col] = np.log1p(df[col])
-
-   # print(df.skew())
-     #   if abs(df[col].skew()) > 1:
-      #      df[col] = np.log[:,col]
     return df
 
 def normal(train, test):
@@ -110,8 +100,9 @@ def normal(train, test):
     return train, test
 
 def binary_fix(df, col, value):
-    df.loc[df[col] == value, col] = 0
-    df.loc[df[col] != 0, col] = 1
+    # df.loc[df[col] == value, col] = 0
+    # df.loc[df[col] != 0, col] = 1
+    # df[col] = df[col].astype(int)
     return df
 
 def fill_na(df):
@@ -123,7 +114,7 @@ def fill_na(df):
     df.fillna(df.mode().iloc[0], inplace=True)
     return df
 
-def outlier_remove(df, iqr_step=1.5, n=3):
+def outlier_remove(df, iqr_step=1.3, n=3):
     outlier_index = []
     for col in df.columns:
         if(is_numeric_dtype(df[col])):
@@ -161,7 +152,7 @@ if __name__ == "__main__":
     # Normal the data
     train, test = normal(train, test)
     X_train, X_test, y_train, y_test = train_test_split(train, y_train, test_size=0.2, random_state=0)
-    model = GradientBoostingRegressor(random_state=0, learning_rate=0.05, n_estimators=500)
+    model = GradientBoostingRegressor(random_state=0, learning_rate=0.05, n_estimators=400)
     model.fit(X_train, y_train)
     print(model.score(X_test, y_test))
     y_pred_test = model.predict(X_test)
