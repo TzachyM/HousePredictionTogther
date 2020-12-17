@@ -27,8 +27,8 @@ def data_prep():
     #visual(train)
     #Feature engineering
     df = feat_engineering(df)
-    train = df.iloc[:(df.shape[0]-id_test.shape[0]), :]
-    test = df.iloc[(df.shape[0]-id_test.shape[0]):, :]
+    train = df.iloc[:train.shape[0], :]
+    test = df.iloc[train.shape[0]:, :]
     return train, test, y_train, id_test
 
 def feat_engineering(df):
@@ -48,7 +48,7 @@ def feat_engineering(df):
     df = binary_fix(df, 'RoofMatl', 'WdShngl')
     labels = [0, 1, 2]
     bins = [0, 1, 400, 2000]
-    #df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True)#maybe leave it numerical
+    #df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True) #maybe leave it numerical
     value_dict = {'Ex': 5, 'Gd': 4, 'TA': 3, 'Fa': 2, 'Po': 1, 'Na': 0, 'Av': 3, 'Mn': 2, 'No': 1, 'GLQ': 6, 'ALQ': 5,
                   'BLQ': 4, 'Rec': 3, 'LwQ': 2, 'Unf': 1}
     df.ExterQual = df.ExterQual.map(value_dict)
@@ -86,7 +86,8 @@ def feat_engineering(df):
     df.drop(['Condition1', 'Condition2', 'Utilities','BsmtFinSF2', 'BsmtFinType2', 'LowQualFinSF','BsmtFullBath',
      'BsmtHalfBath', 'HalfBath', 'GarageYrBlt', 'GarageArea', 'EnclosedPorch','3SsnPorch', 'ScreenPorch', 'PoolArea',
      'PoolQC', 'Fence', 'MiscVal', 'MoSold', 'YrSold'], axis=1, inplace=True)  # 'MSSubClass','Foundation','RoofStyle'
-    #df = skew(df)
+    df = skew(df)
+
     df = pd.get_dummies(df)
     return df
 
@@ -159,21 +160,22 @@ if __name__ == "__main__":
     train, test, y_train, id_test = data_prep()
     # Normal the data
     train, test = normal(train, test)
-    X_train, X_test, y_train, y_test = train_test_split(train, y_train, test_size=0.2, random_state=42)
-    model = GradientBoostingRegressor(random_state=42, learning_rate=0.05, n_estimators=500)
+    X_train, X_test, y_train, y_test = train_test_split(train, y_train, test_size=0.2, random_state=0)
+    model = GradientBoostingRegressor(random_state=0, learning_rate=0.05, n_estimators=500)
     model.fit(X_train, y_train)
     print(model.score(X_test, y_test))
+    y_pred_test = model.predict(X_test)
     y_pred = model.predict(test)
-    #print(np.sqrt(mean_squared_log_error(np.abs(y_test), np.abs(y_pred))))
+    print(np.sqrt(mean_squared_log_error(np.abs(y_test), np.abs(y_pred_test))))
 
     submission = pd.DataFrame({'Id': id_test, 'SalePrice': y_pred})
 
     submission.to_csv(r'C:\Users\tzach\Dropbox\DC\Primrose\Excercies\Kaggle\House Price\test.submission.csv',
                       index=False)
 
-    submission = pd.read_csv(r'C:\Users\tzach\Dropbox\DC\Primrose\Excercies\Kaggle\House Price\test.submission.csv')
+    #submission = pd.read_csv(r'C:\Users\tzach\Dropbox\DC\Primrose\Excercies\Kaggle\House Price\test.submission.csv')
 
-    print(submission)
+    #print(submission)
 
 
 
