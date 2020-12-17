@@ -10,7 +10,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_log_error
 from sklearn.ensemble import GradientBoostingRegressor
 
-from sklearn.linear_model import ElasticNet, Lasso,  BayesianRidge, LassoLarsIC
+from sklearn.linear_model import Lasso
 from sklearn.ensemble import RandomForestRegressor,  GradientBoostingRegressor
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.pipeline import make_pipeline
@@ -19,15 +19,6 @@ from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin, clone
 from sklearn.model_selection import KFold, cross_val_score, train_test_split
 from sklearn.metrics import mean_squared_error
 import lightgbm as lgb
-
-
-
-def rmsle_cv(model, train, y_train):
-    kf = KFold(5, shuffle=True, random_state=42).get_n_splits(train)
-    rmse = np.sqrt(-cross_val_score(model, train, y_train, scoring="neg_mean_squared_error", cv = kf))
-    return rmse
-
-
 
 
 def import_data():
@@ -109,9 +100,9 @@ def feat_engineering(df):
      'BsmtHalfBath', 'HalfBath', 'GarageYrBlt', 'GarageArea', 'EnclosedPorch','3SsnPorch', 'ScreenPorch', 'PoolArea',
      'PoolQC', 'Fence', 'MiscVal', 'MoSold', 'YrSold', 'MSSubClass', 'Foundation', 'RoofStyle'], axis=1, inplace=True)  # 'MSSubClass','Foundation','RoofStyle'
     #Skewness fix
-    print("Skewness before fix:", df.skew().mean())
+    #print("Skewness before fix:", df.skew().mean())
     df = df.apply(lambda x: np.log1p(x) if is_numeric_dtype(x) and np.abs(x.skew())>2 else x)
-    print("Skewness after fix:", df.skew().mean())
+    #print("Skewness after fix:", df.skew().mean())
     df = pd.get_dummies(df)
     return df
 
@@ -167,22 +158,39 @@ def visual(df):
     # view TotalBsmtSF with salePrice
     df.plot.scatter(x='TotalBsmtSF', y='SalePrice')
 
+def rmsle_cv(model, train, y_train):
+    kf = KFold(5, shuffle=True, random_state=42).get_n_splits(train)
+    rmse = np.sqrt(-cross_val_score(model, train, y_train, scoring="neg_mean_squared_error", cv = kf))
+    return rmse
+
+
+class AveragingModels:
+    def __init__(self, models):
+        self.models = models
+
+    def fit(self, X, y):
+        for model in self.models:
+            model.fit(X, y)
+        return self
+
+    def predict(self, X):
+        predictions = np.column_stack([ model.predict(X) for model in self.models ])
+        return np.mean(predictions, axis=1)
+
 
 if __name__ == "__main__":
 
     train, test, y_train, id_test = data_prep()
     y_train = np.log1p(y_train)
     # Normal the data
-    train, test = normal(train, test)
-    X_train, X_test, y_train, y_test = train_test_split(train, y_train, test_size=0.2, random_state=0)
-    model = GradientBoostingRegressor(random_state=0, learning_rate=0.05, n_estimators=400)
-    model.fit(X_train, y_train)
+    #train, test = normal(train, test)
+
+    lasso = make_pipeline(RobustScaler(), Lasso(alpha =0.0005, random_state=1))
 
     GBoost = GradientBoostingRegressor(n_estimators=3000, learning_rate=0.05,
                                        max_depth=4, max_features='sqrt',
                                        min_samples_leaf=15, min_samples_split=10,
                                        loss='huber', random_state=5)
-
 
     model_lgb = lgb.LGBMRegressor(objective='regression', num_leaves=5,
                                   learning_rate=0.05, n_estimators=720,
@@ -190,26 +198,32 @@ if __name__ == "__main__":
                                   bagging_freq=5, feature_fraction=0.2319,
                                   feature_fraction_seed=9, bagging_seed=9,
                                   min_data_in_leaf=6, min_sum_hessian_in_leaf=11)
-    score = rmsle_cv(GBoost, X_train, y_train)
+    score = rmsle_cv(GBoost, train, y_train)
     print("Gradient Boosting score: {:.4f} ({:.4f})\n".format(score.mean(), score.std()))
 
-    score = rmsle_cv(model_lgb, X_train, y_train)
+    score = rmsle_cv(model_lgb, train, y_train)
     print("LGBM score: {:.4f} ({:.4f})\n".format(score.mean(), score.std()))
 
+    av = AveragingModels([model_lgb, GBoost, lasso])
 
-    print(model.score(X_test, y_test))
-    y_pred_test = model.predict(X_test)
-    y_pred = model.predict(test)
-    print(np.sqrt(mean_squared_log_error(np.abs(y_test), np.abs(y_pred_test))))
+    av.fit(train, y_train)
 
-    submission = pd.DataFrame({'Id': id_test, 'SalePrice': np.exp(y_pred)})
+    y_pred = av.predict(test)
+    y_pred = np.exp(y_pred)
+
+    #print(model.score(X_test, y_test))
+    #y_pred_test = model.predict(X_test)
+    #y_pred = model.predict(test)
+    #print(np.sqrt(mean_squared_log_error(np.abs(y_test), np.abs(y_pred_test))))
+
+    submission = pd.DataFrame({'Id': id_test, 'SalePrice': y_pred})
 
     submission.to_csv(r'C:\Users\tzach\Dropbox\DC\Primrose\Excercies\Kaggle\House Price\test.submission.csv',
                       index=False)
 
-    #submission = pd.read_csv(r'C:\Users\tzach\Dropbox\DC\Primrose\Excercies\Kaggle\House Price\test.submission.csv')
+    submission = pd.read_csv(r'C:\Users\tzach\Dropbox\DC\Primrose\Excercies\Kaggle\House Price\test.submission.csv')
 
-    #print(submission)
+    print(submission)
 
 
 
