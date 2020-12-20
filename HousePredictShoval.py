@@ -21,6 +21,23 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_log_error
 from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.linear_model import ElasticNet, Lasso,  BayesianRidge, LassoLarsIC
+from sklearn.ensemble import RandomForestRegressor,  GradientBoostingRegressor
+from sklearn.kernel_ridge import KernelRidge
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import RobustScaler
+from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin, clone
+from sklearn.model_selection import KFold, cross_val_score, train_test_split
+from sklearn.metrics import mean_squared_error
+
+import lightgbm as lgb
+
+def rmsle_cv(model,train, y_train):
+    kf = KFold(5, shuffle=True, random_state=42).get_n_splits(train)
+    rmse= np.sqrt(-cross_val_score(model, train, y_train, scoring="neg_mean_squared_error", cv = kf))
+    return(rmse)
+
+
 def visual_data(df):
     # view year build with salePrice
 
@@ -73,7 +90,7 @@ def detect_outliers(df, n):
             IQR = Q3 - Q1
 
             # outlier step
-            outlier_step = 1.5 * IQR
+            outlier_step = 1.6 * IQR
 
             # Determine a list of indices of outliers for feature col
             outlier_list_col = df[(df[col] < Q1 - outlier_step) | (df[col] > Q3 + outlier_step)].index
@@ -89,8 +106,9 @@ def detect_outliers(df, n):
 
 
 def fix_conditions(df, col, val):
-    df.loc[df[col] != val, col] = 0
-    df.loc[df[col] == val, col] = 1
+    # df.loc[df[col] != val, col] = 0
+    # df.loc[df[col] == val, col] = 1
+    # df[col] = df[col].astype('int64')
     return df
 
 
@@ -119,15 +137,15 @@ def features_engineering(df):
     # make the YearRemodAdd a range of years
     labels = [0, 1, 2, 3, 4, 5]
     bins = [0, 1920, 1940, 1960, 1980, 2000, 2020]
-    df.YearRemodAdd = pd.cut(df.YearRemodAdd, bins, labels=labels, include_lowest=True)
+    #df.YearRemodAdd = pd.cut(df.YearRemodAdd, bins, labels=labels, include_lowest=True)
     # change roof matirial
-    df = fix_conditions(df, 'RoofMatl', 'WdShngl')
+    #df = fix_conditions(df, 'RoofMatl', 'WdShngl')
     # group MasVnrArea by ranges
     labels = [0, 1, 2]
     bins = [0, 1, 400, 2000]
     dict = {'Ex':5, 'Gd':4, 'TA':3, 'Fa':2, 'Po':1, 'NA':0, 'Mn':2 , 'No':1,'GLQ': 6, 'ALQ': 5, 'BLQ': 4, 'Rec': 3, 'LwQ': 2,'Unf': 1,'Av':3}
     # dealing with basement
-    df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True)
+    #df.MasVnrArea = pd.cut(df.MasVnrArea, bins, labels=labels, include_lowest=True)
     df.ExterQual = df.ExterQual.map(dict)
     df.ExterCond = df.ExterCond.map(dict)
     df.BsmtQual = df.BsmtQual.map(dict)
@@ -139,15 +157,14 @@ def features_engineering(df):
     df.BsmtFinSF1 = pd.cut(df.BsmtFinSF1, bins, labels=labels, include_lowest=True)
     df.BsmtUnfSF = pd.cut(df.BsmtUnfSF, bins, labels=labels, include_lowest=True)
     # heating engeeniring
-    df.loc[(df['Heating']=='GasA') | (df['Heating']== 'GasW'), 'Heating'] = 1
-    df.loc[df['Heating'] != 1, 'Heating'] = 0
+
     df.HeatingQC = df.HeatingQC.map(dict)
     #dealing with inside sizes
     df['2ndFlrSF'] = pd.cut(df['2ndFlrSF'], bins, labels=labels, include_lowest=True)
     df = fix_conditions(df, 'KitchenAbvGr', 1)
     df.KitchenQual = df.KitchenQual.map(dict)
     df.TotRmsAbvGrd = df.TotRmsAbvGrd.map({2:2,5:4, 3:4,4:4, 6:6, 7:7, 8:8, 9:9, 11:11 , 12:11, 10:11, 14:14,13:13,15:15,1:1})
-    df = fix_conditions(df, 'Functional', 'Maj2')
+    #df = fix_conditions(df, 'Functional', 'Maj2')
     df.FireplaceQu = df.FireplaceQu.map(dict)
     # dealing with Garage
     df.GarageFinish = df.GarageFinish.map({'NA':0, 'Fin':3, 'RFn':2, 'Unf':1})
@@ -170,6 +187,26 @@ def normal(train, test):
     return train, test
 
 
+class AveragingModels:
+    def __init__(self, models):
+        self.models = models
+
+    # we define clones of the original models to fit the data in
+    def fit(self, X, y):
+
+        # Train cloned base models
+        for model in self.models:
+            model.fit(X, y)
+
+        return self
+
+    # Now we do the predictions for cloned models and average them
+    def predict(self, X):
+        predictions = np.column_stack([ model.predict(X) for model in self.models ])
+        return np.mean(predictions, axis=1)
+
+
+
 if __name__ == '__main__':
     # load data
     train_data = pd.read_csv(r'House.csv')
@@ -184,24 +221,45 @@ if __name__ == '__main__':
     df = df.drop(['Id', 'SalePrice'], axis=1)  # drop useless columns
     df = fill_na(df)  # fill all the nulls after viewing the data
     df = features_engineering(df)  # change the features to better
-
-    df = df.apply(lambda x: np.log1p(x) if is_numeric_dtype(x) else x)
-    print(df.Heating.value_counts())
-    print(df.info())
+    df = df.apply(lambda x: np.log1p(x) if (is_numeric_dtype(x) and x.skew() > 1 ) else x)
+    y = np.log1p(y)
+    print('after skew ', abs(df.skew()).mean() )
     df = pd.get_dummies(df)
-    print(df.skew().mean(), 'after skew')
     train = df.iloc[:train_data.shape[0], :]
     test = df.iloc[train_data.shape[0]:, :]
     test = test.reset_index(drop=True)
     #noramlize data
-
+    train, test = normal(train, test)
     X_train, X_test, y_train, y_test = train_test_split(train, y, test_size=0.2, random_state=0)
     model = GradientBoostingRegressor(random_state=0, learning_rate=0.05, n_estimators=500)
     model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    print(model.score(X_test, y_test))
-    print(np.sqrt(mean_squared_log_error(np.abs(y_test),np.abs(y_pred))))
-'''   
+    y_pred = model.predict(test)
+    y_pred = np.exp(y_pred)
+    GBoost = GradientBoostingRegressor(n_estimators=3000, learning_rate=0.05,
+                                       max_depth=4, max_features='sqrt',
+                                       min_samples_leaf=15, min_samples_split=10,
+                                       loss='huber', random_state=5)
+
+    model_lgb = lgb.LGBMRegressor(objective='regression', num_leaves=5,
+                                  learning_rate=0.05, n_estimators=720,
+                                  max_bin=55, bagging_fraction=0.8,
+                                  bagging_freq=5, feature_fraction=0.2319,
+                                  feature_fraction_seed=9, bagging_seed=9,
+                                  min_data_in_leaf=6, min_sum_hessian_in_leaf=11)
+    lasso = make_pipeline(RobustScaler(), Lasso(alpha=0.0005, random_state=1))
+    scoreGB = rmsle_cv(GBoost,X_train, y_train)
+    scorelgb = rmsle_cv(model_lgb, X_train, y_train)
+    scorels = rmsle_cv(lasso, X_train, y_train)
+    print(f'score gb {scoreGB}')
+    print(f'score lgb {scorelgb}')
+    print(f'score ls {scorels}')
+
+    av = AveragingModels([model_lgb, GBoost, lasso])
+
+    av.fit(X_train, y_train)
+
+    y_pred = av.predict(test)
+    y_pred = np.exp(y_pred)
     submission = pd.DataFrame({'Id': id_test, 'SalePrice': y_pred})
 
     submission.to_csv('submission.csv', index=False)
@@ -209,4 +267,3 @@ if __name__ == '__main__':
     submission = pd.read_csv('submission.csv')
 
     print(submission)
-'''
