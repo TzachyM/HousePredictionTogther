@@ -6,10 +6,16 @@ from sklearn.model_selection import train_test_split
 
 
 class SVM:
+    def hinge_loss(self, w, x_, y_):
+        loss = 0
+        v = y_ * np.dot(w, x_.T)
+        loss += max(0, 1 - v[-1])
+        return loss
 
-    def fit(self, X, y, lr=0.001, n_iters=1000, lambda_param=0.01 ):
+    def fit(self, X, y, lr=0.001, n_iters=1000, lambda_param=0.01):
         y_ = np.where(y <= 0, -1, 1)
-        self.w = np.zeros(X.shape[1])
+
+        self.w = np.zeros(X.shape[3])
         for _ in range(n_iters):
             for idx, x_i in enumerate(X):
                 condition = y_[idx] * (np.dot(x_i, self.w) ) >= 1

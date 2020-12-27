@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Mon Dec 14 11:56:27 2020
-
 @author: ggpen
 """
 #16/12
@@ -22,15 +21,17 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_log_error
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import ElasticNet, Lasso,  BayesianRidge, LassoLarsIC
-from sklearn.ensemble import RandomForestRegressor,  GradientBoostingRegressor
+from sklearn.ensemble import RandomForestRegressor,  GradientBoostingRegressor, AdaBoostRegressor
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import RobustScaler
 from sklearn.base import BaseEstimator, TransformerMixin, RegressorMixin, clone
 from sklearn.model_selection import KFold, cross_val_score, train_test_split
 from sklearn.metrics import mean_squared_error
-
+from sklearn.ensemble import StackingRegressor
 import lightgbm as lgb
+import warnings
+warnings.filterwarnings('ignore')
 
 def rmsle_cv(model,train, y_train):
     kf = KFold(5, shuffle=True, random_state=42).get_n_splits(train)
@@ -230,34 +231,31 @@ if __name__ == '__main__':
     test = test.reset_index(drop=True)
     #noramlize data
     train, test = normal(train, test)
-    X_train, X_test, y_train, y_test = train_test_split(train, y, test_size=0.2, random_state=0)
-    model = GradientBoostingRegressor(random_state=0, learning_rate=0.05, n_estimators=500)
-    model.fit(X_train, y_train)
-    y_pred = model.predict(test)
-    y_pred = np.exp(y_pred)
     GBoost = GradientBoostingRegressor(n_estimators=3000, learning_rate=0.05,
                                        max_depth=4, max_features='sqrt',
-                                       min_samples_leaf=15, min_samples_split=10,
-                                       loss='huber', random_state=5)
+                                       min_samples_leaf=15, min_samples_split=10,random_state=42)
 
     model_lgb = lgb.LGBMRegressor(objective='regression', num_leaves=5,
                                   learning_rate=0.05, n_estimators=720,
                                   max_bin=55, bagging_fraction=0.8,
                                   bagging_freq=5, feature_fraction=0.2319,
                                   feature_fraction_seed=9, bagging_seed=9,
-                                  min_data_in_leaf=6, min_sum_hessian_in_leaf=11)
-    lasso = make_pipeline(RobustScaler(), Lasso(alpha=0.0005, random_state=1))
-    scoreGB = rmsle_cv(GBoost,X_train, y_train)
-    scorelgb = rmsle_cv(model_lgb, X_train, y_train)
-    scorels = rmsle_cv(lasso, X_train, y_train)
-    print(f'score gb {scoreGB}')
-    print(f'score lgb {scorelgb}')
-    print(f'score ls {scorels}')
+                                  min_data_in_leaf=6, min_sum_hessian_in_leaf=11,random_state=42)
+    lasso = make_pipeline(RobustScaler(), Lasso(alpha=0.0005,random_state=42))
 
-    av = AveragingModels([model_lgb, GBoost, lasso])
+    models = [ lasso, GBoost, model_lgb, RandomForestRegressor()]
+    estimators = []
+    for model in models:
+        model_name = type(model).__name__
+        estimators.append((model_name, model))
 
-    av.fit(X_train, y_train)
 
+    # reg = StackingRegressor( estimators = estimators, final_estimator = RandomForestRegressor())
+    # y_pred = reg.fit(train, y).predict(test)
+    # #
+    # # y_pred = av.predict(test)
+    av = AveragingModels(models)
+    av.fit(train, y)
     y_pred = av.predict(test)
     y_pred = np.exp(y_pred)
     submission = pd.DataFrame({'Id': id_test, 'SalePrice': y_pred})
